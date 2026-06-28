@@ -527,6 +527,17 @@ let scriptUrl   = '';
 let currentStore = 'all';
 let items        = [];
 
+// Grocery store aisle order — items sort by this sequence
+const CATEGORY_ORDER = [
+  'Produce', 'Bakery', 'Deli', 'Meat', 'Dairy',
+  'Frozen', 'Pantry', 'Snacks', 'Beverages', 'Health'
+];
+
+function categoryRank(cat) {
+  const idx = CATEGORY_ORDER.indexOf(cat || '');
+  return idx === -1 ? CATEGORY_ORDER.length : idx; // uncategorized goes last
+}
+
 // ── Boot ──────────────────────────────────────────
 function boot() {
   scriptUrl = localStorage.getItem('gScript') || '';
@@ -756,7 +767,23 @@ function renderList() {
   let html = '';
 
   if (active.length > 0) {
-    html += active.map(i => itemHtml(i)).join('');
+    // Sort by aisle order, then alphabetically within each category
+    active.sort((a, b) => {
+      const rd = categoryRank(a.Category) - categoryRank(b.Category);
+      if (rd !== 0) return rd;
+      return (a.Name || '').localeCompare(b.Name || '');
+    });
+
+    // Render with category section headers
+    let lastCat = null;
+    for (const item of active) {
+      const cat = item.Category || '';
+      if (cat && cat !== lastCat) {
+        html += `<div class="section-label">${esc(cat)}</div>`;
+        lastCat = cat;
+      }
+      html += itemHtml(item);
+    }
   }
 
   if (checked.length > 0) {
