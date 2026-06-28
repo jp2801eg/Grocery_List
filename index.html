@@ -551,22 +551,21 @@ function boot() {
     if (e.key === 'Enter') addItem();
   });
 
-  if (scriptUrl) { showApp(); loadItems(); }
+  // Poll fast when in foreground, stop when backgrounded
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && scriptUrl) {
+      silentRefresh();   // immediate refresh on return
+      startPolling();    // resume fast polling
+    } else {
+      stopPolling();     // pause polling while app is in background
+    }
+  });
+
+  if (scriptUrl) { showApp(); loadItems(); startPolling(); }
   else            { showSetup(); }
 }
 
 // ── URL setup ─────────────────────────────────────
-function saveUrl() {
-  const val = document.getElementById('setupUrl').value.trim();
-  if (!val.startsWith('https://script.google.com')) {
-    toast('Please enter a valid Apps Script URL'); return;
-  }
-  localStorage.setItem('gScript', val);
-  scriptUrl = val;
-  showApp();
-  loadItems();
-}
-
 function updateUrl() {
   const val = document.getElementById('settingsUrl').value.trim();
   if (val) { localStorage.setItem('gScript', val); scriptUrl = val; }
@@ -587,6 +586,19 @@ function showSetup() {
 function showApp() {
   document.getElementById('setup').style.display = 'none';
   document.getElementById('app').classList.add('show');
+}
+
+// Also start polling when URL is saved mid-session
+function saveUrl() {
+  const val = document.getElementById('setupUrl').value.trim();
+  if (!val.startsWith('https://script.google.com')) {
+    toast('Please enter a valid Apps Script URL'); return;
+  }
+  localStorage.setItem('gScript', val);
+  scriptUrl = val;
+  showApp();
+  loadItems();
+  startPolling();
 }
 
 // ── API ───────────────────────────────────────────
@@ -610,6 +622,28 @@ async function loadItems() {
   }
 }
 
+// ── Polling ───────────────────────────────────────
+let pollTimer = null;
+
+function startPolling() {
+  stopPolling();
+  pollTimer = setInterval(silentRefresh, 15000); // every 15s while in foreground
+}
+
+function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+async function silentRefresh() {
+  if (!scriptUrl || document.querySelector('.overlay.show')) return;
+  try {
+    const data = await api({ action: 'getItems', store: 'all' });
+    if (data.error || !data.items) return;
+    items = data.items;
+    renderList(); // re-render in place, scroll preserved
+  } catch { /* fail silently — don't disrupt Tina if connection hiccups */ }
+}
+
 function visibleItems(list) {
   if (currentStore === 'all') return list;
   // Show store-specific items + Grocery (catch-all) items
@@ -626,10 +660,26 @@ async function toggle(id) {
   await api({ action: item.Status === 'checked' ? 'checkItem' : 'uncheckItem', id });
 }
 
+let pendingDel = null;
+
 async function del(id) {
-  items = items.filter(i => i.ID !== id);
-  renderList();
-  await api({ action: 'deleteItem', id });
+  if (pendingDel && pendingDel.id === id) {
+    // Second tap within 2s — confirm delete
+    clearTimeout(pendingDel.timer);
+    pendingDel = null;
+    items = items.filter(i => i.ID !== id);
+    renderList();
+    await api({ action: 'deleteItem', id });
+  } else {
+    // First tap — arm it, show feedback
+    if (pendingDel) clearTimeout(pendingDel.timer);
+    pendingDel = {
+      id,
+      timer: setTimeout(() => { pendingDel = null; renderList(); }, 2000)
+    };
+    toast('Tap × again to remove');
+    renderList(); // re-render so the × turns red
+  }
 }
 
 // ── Add ───────────────────────────────────────────
@@ -683,6 +733,9 @@ function renderError(msg) {
 }
 
 function renderList() {
+  const listArea = document.getElementById('listArea');
+  const scrollTop = listArea.scrollTop; // preserve scroll position
+
   const visible = visibleItems(items);
   const active  = visible.filter(i => i.Status === 'active');
   const checked = visible.filter(i => i.Status === 'checked');
@@ -691,7 +744,7 @@ function renderList() {
   document.getElementById('doneBtn').classList.toggle('show', hasChecked);
 
   if (visible.length === 0) {
-    document.getElementById('listArea').innerHTML = `
+    listArea.innerHTML = `
       <div class="center-state">
         <div class="state-icon">🥬</div>
         <div class="state-title">List is empty</div>
@@ -711,7 +764,8 @@ function renderList() {
     html += checked.map(i => itemHtml(i)).join('');
   }
 
-  document.getElementById('listArea').innerHTML = html;
+  listArea.innerHTML = html;
+  listArea.scrollTop = scrollTop; // restore scroll
 
   // Attach events (avoid inline handlers with special chars in IDs)
   document.querySelectorAll('.item[data-id]').forEach(el => {
@@ -729,8 +783,9 @@ function renderList() {
 }
 
 function itemHtml(item) {
-  const checked = item.Status === 'checked';
-  const storeTag = currentStore === 'all'
+  const checked    = item.Status === 'checked';
+  const isPending  = pendingDel && pendingDel.id === item.ID;
+  const storeTag   = currentStore === 'all'
     ? `<div class="item-store">${esc(item.Store || '')}</div>`
     : '';
   const id = esc(item.ID);
@@ -741,7 +796,8 @@ function itemHtml(item) {
         <div class="item-name">${esc(item.Name)}</div>
         ${storeTag}
       </div>
-      <button class="item-del" data-id="${id}" aria-label="Remove">×</button>
+      <button class="item-del" data-id="${id}" aria-label="Remove"
+        style="${isPending ? 'color:var(--red);font-weight:700' : ''}">×</button>
     </div>`;
 }
 
