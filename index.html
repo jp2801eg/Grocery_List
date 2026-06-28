@@ -624,6 +624,8 @@ async function api(params) {
 async function loadItems() {
   renderLoading();
   try {
+    // Promote any overdue catalog staples before fetching the list
+    await api({ action: 'refreshStaples' }).catch(() => {});
     const data = await api({ action: 'getItems', store: 'all' }); // always fetch all, filter client-side
     if (data.error) throw new Error(data.error);
     items = data.items || [];
