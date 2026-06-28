@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Graulty Groceries">
+  <meta name="theme-color" content="#2D6A4F">
+  <title>Graulty Grocery List</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #FAFAF7;
+      --green:     #2D6A4F;
+      --green-dim: rgba(45,106,79,0.12);
+      --sage:      #95B8A0;
+      --stone:     #F0EDE6;
+      --ink:       #1A1A1A;
+      --muted:     #6B7280;
+      --border:    #E5E2DB;
+      --white:     #FFFFFF;
+      --checked-bg:#E8F4EC;
+      --red:       #DC2626;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.07);
+      --shadow-md: 0 4px 16px rgba(0,0,0,0.10);
+      --radius:    14px;
+      --st:        env(safe-area-inset-top,    0px);
+      --sb:        env(safe-area-inset-bottom, 0px);
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      overscroll-behavior: none;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    /* ── Setup Screen ─────────────────────────────── */
+    #setup {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100dvh;
+      padding: 40px 28px calc(40px + var(--sb));
+      text-align: center;
+    }
+
+    .setup-icon { font-size: 72px; margin-bottom: 28px; }
+
+    #setup h1 {
+      font-size: 28px;
+      font-weight: 800;
+      color: var(--green);
+      letter-spacing: -0.5px;
+      margin-bottom: 10px;
+    }
+
+    #setup p {
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.6;
+      max-width: 320px;
+      margin-bottom: 36px;
+    }
+
+    .field {
+      width: 100%;
+      max-width: 420px;
+      padding: 15px 16px;
+      border: 2px solid var(--border);
+      border-radius: var(--radius);
+      font-size: 15px;
+      background: var(--white);
+      color: var(--ink);
+      outline: none;
+      transition: border-color 0.18s;
+      margin-bottom: 12px;
+      -webkit-appearance: none;
+    }
+    .field:focus { border-color: var(--green); }
+
+    .btn {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      max-width: 420px;
+      padding: 16px;
+      border-radius: var(--radius);
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      border: none;
+      transition: opacity 0.15s, transform 0.12s;
+    }
+    .btn:active { opacity: 0.82; transform: scale(0.98); }
+
+    .btn-green  { background: var(--green);  color: var(--white); }
+    .btn-ghost  { background: var(--white);  color: var(--ink); border: 2px solid var(--border); }
+
+    /* ── App ──────────────────────────────────────── */
+    #app {
+      display: none;
+      flex-direction: column;
+      min-height: 100dvh;
+    }
+    #app.show { display: flex; }
+
+    /* Header */
+    .header {
+      background: var(--green);
+      color: var(--white);
+      padding-top: calc(var(--st) + 14px);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    }
+
+    .header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px 12px;
+    }
+
+    .header-title {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+    }
+
+    .header-btns { display: flex; gap: 8px; }
+
+    .hbtn {
+      background: rgba(255,255,255,0.18);
+      border: none;
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 17px;
+      color: white;
+      transition: background 0.15s;
+    }
+    .hbtn:active { background: rgba(255,255,255,0.32); }
+
+    /* Store chips */
+    .chips {
+      display: flex;
+      gap: 7px;
+      overflow-x: auto;
+      padding: 0 18px 16px;
+      scrollbar-width: none;
+    }
+    .chips::-webkit-scrollbar { display: none; }
+
+    .chip {
+      flex-shrink: 0;
+      padding: 7px 15px;
+      border-radius: 20px;
+      border: none;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      background: rgba(255,255,255,0.18);
+      color: rgba(255,255,255,0.85);
+      transition: background 0.18s, color 0.18s;
+    }
+    .chip.active { background: var(--white); color: var(--green); }
+
+    /* List area */
+    .list-area {
+      flex: 1;
+      padding: 14px 16px;
+      padding-bottom: calc(120px + var(--sb));
+      overflow-y: auto;
+    }
+
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--muted);
+      padding: 12px 4px 6px;
+    }
+
+    /* Item card */
+    .item {
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      background: var(--white);
+      border-radius: var(--radius);
+      padding: 14px 14px 14px 16px;
+      margin-bottom: 8px;
+      box-shadow: var(--shadow-sm);
+      cursor: pointer;
+      transition: background 0.18s, opacity 0.18s;
+    }
+    .item.checked {
+      background: var(--checked-bg);
+      opacity: 0.72;
+    }
+
+    .check-ring {
+      flex-shrink: 0;
+      width: 27px;
+      height: 27px;
+      border-radius: 50%;
+      border: 2.5px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.18s, border-color 0.18s;
+    }
+    .item.checked .check-ring {
+      background: var(--green);
+      border-color: var(--green);
+    }
+    .check-mark {
+      color: white;
+      font-size: 13px;
+      opacity: 0;
+    }
+    .item.checked .check-mark { opacity: 1; }
+
+    .item-body { flex: 1; min-width: 0; }
+
+    .item-name {
+      font-size: 16px;
+      font-weight: 500;
+      color: var(--ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .item.checked .item-name {
+      text-decoration: line-through;
+      color: var(--muted);
+    }
+
+    .item-store {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .item-del {
+      background: none;
+      border: none;
+      font-size: 22px;
+      line-height: 1;
+      color: #CCC;
+      cursor: pointer;
+      padding: 2px 4px;
+      flex-shrink: 0;
+    }
+    .item-del:active { color: var(--red); }
+
+    /* States */
+    .center-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 72px 24px;
+      text-align: center;
+      gap: 10px;
+    }
+    .state-icon { font-size: 48px; }
+    .state-title { font-size: 17px; font-weight: 600; }
+    .state-sub { font-size: 14px; color: var(--muted); }
+
+    .spinner {
+      width: 34px;
+      height: 34px;
+      border: 3px solid var(--border);
+      border-top-color: var(--green);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Bottom row: done bar + FAB */
+    .bottom-row {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      display: flex;
+      align-items: flex-end;
+      gap: 12px;
+      padding: 16px 16px calc(16px + var(--sb));
+      pointer-events: none;
+      z-index: 200;
+    }
+
+    .done-btn {
+      flex: 1;
+      height: 58px;
+      background: var(--green);
+      color: white;
+      border: none;
+      border-radius: 18px;
+      font-size: 16px;
+      font-weight: 700;
+      cursor: pointer;
+      box-shadow: var(--shadow-md);
+      pointer-events: all;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: opacity 0.15s;
+    }
+    .done-btn.show { display: flex; }
+    .done-btn:active { opacity: 0.85; }
+
+    .fab {
+      flex-shrink: 0;
+      width: 58px;
+      height: 58px;
+      border-radius: 50%;
+      background: var(--green);
+      color: white;
+      border: none;
+      font-size: 30px;
+      line-height: 1;
+      cursor: pointer;
+      box-shadow: 0 4px 18px rgba(45,106,79,0.45);
+      pointer-events: all;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.12s, box-shadow 0.12s;
+    }
+    .fab:active { transform: scale(0.92); box-shadow: 0 2px 8px rgba(45,106,79,0.3); }
+
+    /* ── Modals ───────────────────────────────────── */
+    .overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.38);
+      z-index: 300;
+      display: none;
+      align-items: flex-end;
+      justify-content: center;
+    }
+    .overlay.show { display: flex; }
+
+    .sheet {
+      background: var(--bg);
+      border-radius: 24px 24px 0 0;
+      padding: 20px 22px calc(22px + var(--sb));
+      width: 100%;
+      max-width: 560px;
+      animation: slideUp 0.22s ease-out;
+    }
+    @keyframes slideUp { from { transform: translateY(30px); opacity: 0; } }
+
+    .pull-handle {
+      width: 38px;
+      height: 4px;
+      background: var(--border);
+      border-radius: 2px;
+      margin: 0 auto 18px;
+    }
+
+    .sheet h2 {
+      font-size: 20px;
+      font-weight: 800;
+      margin-bottom: 18px;
+    }
+
+    .sheet .field { max-width: 100%; }
+
+    .sheet select.field option { color: var(--ink); }
+
+    .sheet-body { display: flex; flex-direction: column; gap: 10px; }
+
+    .btn-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 6px;
+    }
+    .btn-row .btn { margin: 0; }
+    .btn-row .btn-ghost { flex: 1; }
+    .btn-row .btn-green { flex: 2; }
+
+    .sheet-note {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.55;
+      margin-bottom: 4px;
+    }
+
+    /* ── Toast ────────────────────────────────────── */
+    #toast {
+      position: fixed;
+      bottom: calc(100px + var(--sb));
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--ink);
+      color: white;
+      padding: 10px 22px;
+      border-radius: 22px;
+      font-size: 14px;
+      font-weight: 500;
+      white-space: nowrap;
+      z-index: 600;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.25s;
+    }
+    #toast.show { opacity: 1; }
+  </style>
+</head>
+<body>
+
+<!-- ── Setup ───────────────────────────────────── -->
+<div id="setup">
+  <div class="setup-icon">🛒</div>
+  <h1>Graulty Grocery List</h1>
+  <p>Connect your Google Sheet brain. Paste your Apps Script deployment URL below.</p>
+  <input id="setupUrl" class="field" type="url" placeholder="https://script.google.com/macros/s/…">
+  <button class="btn btn-green" onclick="saveUrl()">Connect →</button>
+</div>
+
+<!-- ── App ─────────────────────────────────────── -->
+<div id="app">
+
+  <div class="header">
+    <div class="header-row">
+      <div class="header-title">🛒 Graulty Groceries</div>
+      <div class="header-btns">
+        <button class="hbtn" onclick="loadItems()" title="Refresh">↻</button>
+        <button class="hbtn" onclick="openModal('settings')" title="Settings">⚙</button>
+      </div>
+    </div>
+    <div class="chips" id="chips">
+      <button class="chip active" data-store="all">All</button>
+      <button class="chip" data-store="Grocery">Grocery</button>
+      <button class="chip" data-store="Costco">Costco</button>
+      <button class="chip" data-store="Trader Joe's">Trader Joe's</button>
+      <button class="chip" data-store="Heinens">Heinens</button>
+    </div>
+  </div>
+
+  <div class="list-area" id="listArea"></div>
+
+  <div class="bottom-row">
+    <button class="done-btn" id="doneBtn" onclick="openModal('done')">
+      ✓ Done Shopping
+    </button>
+    <button class="fab" onclick="openModal('add')">+</button>
+  </div>
+
+</div>
+
+<!-- ── Add Item Modal ──────────────────────────── -->
+<div class="overlay" id="m-add">
+  <div class="sheet">
+    <div class="pull-handle"></div>
+    <h2>Add Item</h2>
+    <div class="sheet-body">
+      <input id="newName" class="field" type="text" placeholder="Item name…" autocomplete="off" autocorrect="off">
+      <select id="newStore" class="field">
+        <option value="Grocery">🛒 Grocery</option>
+        <option value="Costco">📦 Costco</option>
+        <option value="Trader Joe's">🌿 Trader Joe's</option>
+        <option value="Heinens">🏪 Heinens</option>
+      </select>
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="closeModals()">Cancel</button>
+        <button class="btn btn-green" onclick="addItem()">Add to List</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Done Shopping Modal ─────────────────────── -->
+<div class="overlay" id="m-done">
+  <div class="sheet">
+    <div class="pull-handle"></div>
+    <h2>Done Shopping?</h2>
+    <div class="sheet-body">
+      <p class="sheet-note">Checked items will be logged to your shopping history and removed from the list.</p>
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="closeModals()">Not Yet</button>
+        <button class="btn btn-green" onclick="completeTrip()">Log & Clear ✓</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Settings Modal ──────────────────────────── -->
+<div class="overlay" id="m-settings">
+  <div class="sheet">
+    <div class="pull-handle"></div>
+    <h2>Settings</h2>
+    <div class="sheet-body">
+      <p class="sheet-note">Apps Script URL:</p>
+      <input id="settingsUrl" class="field" type="url" placeholder="https://script.google.com/macros/s/…">
+      <div class="btn-row">
+        <button class="btn btn-ghost" onclick="closeModals()">Cancel</button>
+        <button class="btn btn-green" onclick="updateUrl()">Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<script>
+// ── State ─────────────────────────────────────────
+let scriptUrl   = '';
+let currentStore = 'all';
+let items        = [];
+
+// ── Boot ──────────────────────────────────────────
+function boot() {
+  scriptUrl = localStorage.getItem('gScript') || '';
+
+  // Store chip clicks
+  document.getElementById('chips').addEventListener('click', e => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    currentStore = chip.dataset.store;
+    // Pre-select store in add modal
+    if (currentStore !== 'all') {
+      document.getElementById('newStore').value = currentStore;
+    }
+    loadItems();
+  });
+
+  // Overlay click to close
+  document.querySelectorAll('.overlay').forEach(el =>
+    el.addEventListener('click', e => { if (e.target === el) closeModals(); })
+  );
+
+  // Enter to submit in add modal
+  document.getElementById('newName').addEventListener('keydown', e => {
+    if (e.key === 'Enter') addItem();
+  });
+
+  if (scriptUrl) { showApp(); loadItems(); }
+  else            { showSetup(); }
+}
+
+// ── URL setup ─────────────────────────────────────
+function saveUrl() {
+  const val = document.getElementById('setupUrl').value.trim();
+  if (!val.startsWith('https://script.google.com')) {
+    toast('Please enter a valid Apps Script URL'); return;
+  }
+  localStorage.setItem('gScript', val);
+  scriptUrl = val;
+  showApp();
+  loadItems();
+}
+
+function updateUrl() {
+  const val = document.getElementById('settingsUrl').value.trim();
+  if (val) { localStorage.setItem('gScript', val); scriptUrl = val; }
+  closeModals();
+  loadItems();
+}
+
+function openSettings() {
+  document.getElementById('settingsUrl').value = scriptUrl;
+  openModal('settings');
+}
+
+// ── Screen switch ─────────────────────────────────
+function showSetup() {
+  document.getElementById('setup').style.display = 'flex';
+  document.getElementById('app').classList.remove('show');
+}
+function showApp() {
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('app').classList.add('show');
+}
+
+// ── API ───────────────────────────────────────────
+async function api(params) {
+  const url  = scriptUrl + '?' + new URLSearchParams(params).toString();
+  const resp = await fetch(url, { redirect: 'follow' });
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  return resp.json();
+}
+
+// ── Load ──────────────────────────────────────────
+async function loadItems() {
+  renderLoading();
+  try {
+    const data = await api({ action: 'getItems', store: currentStore });
+    if (data.error) throw new Error(data.error);
+    items = data.items || [];
+    renderList();
+  } catch (err) {
+    renderError(err.message);
+  }
+}
+
+// ── Toggle / Delete ───────────────────────────────
+async function toggle(id) {
+  const item = items.find(i => i.ID === id);
+  if (!item) return;
+  const was = item.Status;
+  item.Status = was === 'checked' ? 'active' : 'checked';
+  renderList();
+  await api({ action: item.Status === 'checked' ? 'checkItem' : 'uncheckItem', id });
+}
+
+async function del(id) {
+  items = items.filter(i => i.ID !== id);
+  renderList();
+  await api({ action: 'deleteItem', id });
+}
+
+// ── Add ───────────────────────────────────────────
+async function addItem() {
+  const name  = document.getElementById('newName').value.trim();
+  const store = document.getElementById('newStore').value;
+  if (!name) return;
+
+  closeModals();
+  document.getElementById('newName').value = '';
+
+  const tempId = 'tmp-' + Date.now();
+  items.unshift({ ID: tempId, Name: name, Store: store, Status: 'active' });
+  renderList();
+
+  try {
+    const data = await api({ action: 'addItem', name, store });
+    const item = items.find(i => i.ID === tempId);
+    if (item && data.id) item.ID = data.id;
+  } catch { toast('Couldn\'t save — check your connection'); }
+}
+
+// ── Complete trip ─────────────────────────────────
+async function completeTrip() {
+  closeModals();
+  const store = currentStore === 'all' ? 'Various' : currentStore;
+  try {
+    const data = await api({ action: 'completeTrp', store });
+    const n = data.itemsCompleted || 0;
+    toast(`Trip logged — ${n} item${n !== 1 ? 's' : ''} bought`);
+    await loadItems();
+  } catch { toast('Failed to log trip'); }
+}
+
+// ── Render ────────────────────────────────────────
+function renderLoading() {
+  document.getElementById('listArea').innerHTML =
+    '<div class="center-state"><div class="spinner"></div></div>';
+  document.getElementById('doneBtn').classList.remove('show');
+}
+
+function renderError(msg) {
+  document.getElementById('listArea').innerHTML = `
+    <div class="center-state">
+      <div class="state-icon">⚠️</div>
+      <div class="state-title">Couldn't load list</div>
+      <div class="state-sub">${esc(msg)}</div>
+      <button class="btn btn-green" style="max-width:180px;margin-top:16px" onclick="loadItems()">Retry</button>
+    </div>`;
+}
+
+function renderList() {
+  const active  = items.filter(i => i.Status === 'active');
+  const checked = items.filter(i => i.Status === 'checked');
+  const hasChecked = checked.length > 0;
+
+  document.getElementById('doneBtn').classList.toggle('show', hasChecked);
+
+  if (items.length === 0) {
+    document.getElementById('listArea').innerHTML = `
+      <div class="center-state">
+        <div class="state-icon">🥬</div>
+        <div class="state-title">List is empty</div>
+        <div class="state-sub">Tap + to add something</div>
+      </div>`;
+    return;
+  }
+
+  let html = '';
+
+  if (active.length > 0) {
+    html += active.map(i => itemHtml(i)).join('');
+  }
+
+  if (checked.length > 0) {
+    html += `<div class="section-label">In cart (${checked.length})</div>`;
+    html += checked.map(i => itemHtml(i)).join('');
+  }
+
+  document.getElementById('listArea').innerHTML = html;
+
+  // Attach events (avoid inline handlers with special chars in IDs)
+  document.querySelectorAll('.item[data-id]').forEach(el => {
+    el.addEventListener('click', e => {
+      if (e.target.closest('.item-del')) return;
+      toggle(el.dataset.id);
+    });
+  });
+  document.querySelectorAll('.item-del').forEach(el => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
+      del(el.dataset.id);
+    });
+  });
+}
+
+function itemHtml(item) {
+  const checked = item.Status === 'checked';
+  const storeTag = currentStore === 'all'
+    ? `<div class="item-store">${esc(item.Store || '')}</div>`
+    : '';
+  const id = esc(item.ID);
+  return `
+    <div class="item ${checked ? 'checked' : ''}" data-id="${id}">
+      <div class="check-ring"><span class="check-mark">✓</span></div>
+      <div class="item-body">
+        <div class="item-name">${esc(item.Name)}</div>
+        ${storeTag}
+      </div>
+      <button class="item-del" data-id="${id}" aria-label="Remove">×</button>
+    </div>`;
+}
+
+// ── Modals ────────────────────────────────────────
+function openModal(name) {
+  closeModals();
+  if (name === 'settings') {
+    document.getElementById('settingsUrl').value = scriptUrl;
+  }
+  if (name === 'add') {
+    const s = document.getElementById('newStore');
+    if (currentStore !== 'all') s.value = currentStore;
+    setTimeout(() => document.getElementById('newName').focus(), 80);
+  }
+  document.getElementById('m-' + name).classList.add('show');
+}
+
+function closeModals() {
+  document.querySelectorAll('.overlay').forEach(el => el.classList.remove('show'));
+}
+
+// ── Utilities ─────────────────────────────────────
+function esc(s) {
+  return String(s ?? '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+let toastTimer;
+function toast(msg, ms = 2800) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), ms);
+}
+
+boot();
+</script>
+</body>
+</html>
