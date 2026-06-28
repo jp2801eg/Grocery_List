@@ -538,10 +538,6 @@ function boot() {
     document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
     chip.classList.add('active');
     currentStore = chip.dataset.store;
-    // Pre-select store in add modal
-    if (currentStore !== 'all') {
-      document.getElementById('newStore').value = currentStore;
-    }
     loadItems();
   });
 
