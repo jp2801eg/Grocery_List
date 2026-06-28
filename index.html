@@ -478,12 +478,7 @@
     <h2>Add Item</h2>
     <div class="sheet-body">
       <input id="newName" class="field" type="text" placeholder="Item name…" autocomplete="off" autocorrect="off">
-      <select id="newStore" class="field">
-        <option value="Grocery">🛒 Grocery</option>
-        <option value="Costco">📦 Costco</option>
-        <option value="Trader Joe's">🌿 Trader Joe's</option>
-        <option value="Heinens">🏪 Heinens</option>
-      </select>
+      <div id="addStoreHint" style="font-size:13px;color:var(--muted);margin-top:-4px;margin-bottom:4px;"></div>
       <div class="btn-row">
         <button class="btn btn-ghost" onclick="closeModals()">Cancel</button>
         <button class="btn btn-green" onclick="addItem()">Add to List</button>
@@ -610,13 +605,19 @@ async function api(params) {
 async function loadItems() {
   renderLoading();
   try {
-    const data = await api({ action: 'getItems', store: currentStore });
+    const data = await api({ action: 'getItems', store: 'all' }); // always fetch all, filter client-side
     if (data.error) throw new Error(data.error);
     items = data.items || [];
     renderList();
   } catch (err) {
     renderError(err.message);
   }
+}
+
+function visibleItems(list) {
+  if (currentStore === 'all') return list;
+  // Show store-specific items + Grocery (catch-all) items
+  return list.filter(i => i.Store === currentStore || i.Store === 'Grocery');
 }
 
 // ── Toggle / Delete ───────────────────────────────
@@ -638,7 +639,8 @@ async function del(id) {
 // ── Add ───────────────────────────────────────────
 async function addItem() {
   const name  = document.getElementById('newName').value.trim();
-  const store = document.getElementById('newStore').value;
+  // Store = active chip, or Grocery if on "All" (Grocery = catch-all / any store)
+  const store = (currentStore === 'all') ? 'Grocery' : currentStore;
   if (!name) return;
 
   closeModals();
@@ -685,13 +687,14 @@ function renderError(msg) {
 }
 
 function renderList() {
-  const active  = items.filter(i => i.Status === 'active');
-  const checked = items.filter(i => i.Status === 'checked');
+  const visible = visibleItems(items);
+  const active  = visible.filter(i => i.Status === 'active');
+  const checked = visible.filter(i => i.Status === 'checked');
   const hasChecked = checked.length > 0;
 
   document.getElementById('doneBtn').classList.toggle('show', hasChecked);
 
-  if (items.length === 0) {
+  if (visible.length === 0) {
     document.getElementById('listArea').innerHTML = `
       <div class="center-state">
         <div class="state-icon">🥬</div>
@@ -753,8 +756,8 @@ function openModal(name) {
     document.getElementById('settingsUrl').value = scriptUrl;
   }
   if (name === 'add') {
-    const s = document.getElementById('newStore');
-    if (currentStore !== 'all') s.value = currentStore;
+    const storeLabel = currentStore === 'all' ? 'Any store (Grocery)' : currentStore;
+    document.getElementById('addStoreHint').textContent = `Adding to: ${storeLabel}`;
     setTimeout(() => document.getElementById('newName').focus(), 80);
   }
   document.getElementById('m-' + name).classList.add('show');
