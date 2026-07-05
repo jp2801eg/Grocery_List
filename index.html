@@ -533,6 +533,30 @@ const CATEGORY_ORDER = [
   'Frozen', 'Pantry', 'Snacks', 'Beverages', 'Health'
 ];
 
+// Best-effort keyword guess for new items (Add Item has no category field).
+// Anything that doesn't match falls back to '' -> shows as "Uncategorized" so it
+// surfaces for review instead of silently vanishing into another section.
+const CATEGORY_KEYWORDS = {
+  Produce:   ['banana','apple','orange','lettuce','spinach','tomato','onion','potato','pepper','cucumber','carrot','broccoli','fruit','berry','berries','avocado','lemon','lime','garlic','mushroom','celery','grape','melon','squash','nectarine','strawberr'],
+  Bakery:    ['bread','bagel','bun','roll','muffin','croissant','tortilla','pita','cake','donut'],
+  Deli:      ['lunch meat','deli','ham','salami','sliced cheese','chicken salad','prepared food','soup','pasta salad'],
+  Meat:      ['chicken breast','chicken thigh','ground beef','beef','pork','turkey','sausage','bacon','steak','salmon','shrimp','fish fillet'],
+  Dairy:     ['milk','yogurt','cheese','butter','cream','egg','sour cream','cottage cheese'],
+  Frozen:    ['frozen','ice cream','popsicle'],
+  Pantry:    ['pasta','rice','flour','sugar','cooking oil','olive oil','sauce','canned','beans','cereal','pancake','waffle','baking mix','baking soda','condiment','spice','peanut butter','jelly','jam','vinegar','honey','ketchup','mustard'],
+  Snacks:    ['chips','crackers','pretzel','popcorn','trail mix','snack bar','granola bar','cookie'],
+  Beverages: ['water','soda','juice','coffee','tea','sparkling','drink','wine','beer'],
+  Health:    ['vitamin','probiotic','supplement','medicine','bandage']
+};
+
+function guessCategory(name) {
+  const n = (name || '').toLowerCase();
+  for (const [cat, words] of Object.entries(CATEGORY_KEYWORDS)) {
+    if (words.some(w => n.includes(w))) return cat;
+  }
+  return '';
+}
+
 function categoryRank(cat) {
   const idx = CATEGORY_ORDER.indexOf(cat || '');
   return idx === -1 ? CATEGORY_ORDER.length : idx; // uncategorized goes last
@@ -705,12 +729,13 @@ async function addItem() {
   closeModals();
   document.getElementById('newName').value = '';
 
+  const category = guessCategory(name);
   const tempId = 'tmp-' + Date.now();
-  items.unshift({ ID: tempId, Name: name, Store: store, Status: 'active' });
+  items.unshift({ ID: tempId, Name: name, Store: store, Status: 'active', Category: category });
   renderList();
 
   try {
-    const data = await api({ action: 'addItem', name, store });
+    const data = await api({ action: 'addItem', name, store, category });
     const item = items.find(i => i.ID === tempId);
     if (item && data.id) item.ID = data.id;
   } catch { toast('Couldn\'t save — check your connection'); }
@@ -779,8 +804,8 @@ function renderList() {
     // Render with category section headers
     let lastCat = null;
     for (const item of active) {
-      const cat = item.Category || '';
-      if (cat && cat !== lastCat) {
+      const cat = item.Category || 'Uncategorized';
+      if (cat !== lastCat) {
         html += `<div class="section-label">${esc(cat)}</div>`;
         lastCat = cat;
       }
