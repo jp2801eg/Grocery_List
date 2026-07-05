@@ -551,8 +551,12 @@ const CATEGORY_KEYWORDS = {
 
 function guessCategory(name) {
   const n = (name || '').toLowerCase();
+  // Leading word-boundary only (not trailing) so plurals like "bananas" still
+  // match "banana", but a keyword can't match mid-word (e.g. 'cake' must NOT
+  // match inside 'pancake').
+  const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   for (const [cat, words] of Object.entries(CATEGORY_KEYWORDS)) {
-    if (words.some(w => n.includes(w))) return cat;
+    if (words.some(w => new RegExp('\\b' + escRe(w)).test(n))) return cat;
   }
   return '';
 }
